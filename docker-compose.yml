@@ -1,0 +1,28 @@
+services:
+  rag-service:
+    build: .
+    user: root
+    container_name: rag-api
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
+      - CHROMA_PERSIST_DIR=${CHROMA_PERSIST_DIR}
+      - COLLECTION_NAME=${COLLECTION_NAME}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - PYTHONPATH=/app
+    volumes:
+      - chroma_data:${CHROMA_PERSIST_DIR:-/app/data/chroma_db}
+      - model_cache:/app/cache
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  chroma_data:
+  model_cache:
