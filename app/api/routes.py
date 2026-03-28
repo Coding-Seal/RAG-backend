@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Query, HTTPException, status
 
 from app.core.config import settings
+from app.core.chunker import chunk_text
+
 from app.db.chroma import collection
 from app.api.models import *
 
@@ -50,7 +52,7 @@ async def retrieve_context(
                 metadata=metadatas[i]
             ))
 
-        return RetrieveResponse(query=query_req.query, results=formatted_results)
+        return RetrieveResponse(results=formatted_results)
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -58,11 +60,14 @@ async def retrieve_context(
 @router.post("/ingest", status_code=status.HTTP_201_CREATED)
 async def ingest_document(doc: DocumentIngest):
     try:
-        collection.add(
-            ids=[doc.doc_id],
-            documents=[doc.text],
-            metadatas=[doc.metadata]
-        )
+        chunks = chunk_text(doc.text, doc.doc_id, doc.metadata or {}, settings.CHUNK_SIZE, settings.CHUNK_OVERLAP)
+        
+        for chunk in chunks:
+            collection.add(
+                ids=[chunk["chunk_id"]],
+                documents=[chunk["text"]],
+                metadatas=[chunk["metadata"]]
+            )
         return {"message": f"Document {doc.doc_id} ingested successfully."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
